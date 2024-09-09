@@ -66,6 +66,28 @@ int main(int argc, char *argv[]) {
   return (func(argv[optind]));
 }
 
+void getIpAdress(void) {
+  FILE *f;
+  char line[100], *p, *c, *ip;
+  struct in_addr addr;
+  f = fopen("/proc/net/route", "r");
+
+  while (fgets(line, 100, f)) {
+    p = strtok(line, " \t");
+    c = strtok(NULL, " \t");
+    ip = strtok(NULL, " \t");
+
+    if (p != NULL && c != NULL && ip != NULL) {
+      if (strcmp(c, "00000000") == 0) {
+        printf("Default interface is : %s \n", p);
+        addr.s_addr = (int)strtol(ip, NULL, 16);
+        char *s = inet_ntoa(addr);
+        printf("Esperando conexion en IP: %s puerto:%s\n", s, port);
+        break;
+      }
+    }
+  }
+}
 int server(char *filename) {
   int fd, filesz;
   struct stat filestat;
@@ -97,12 +119,13 @@ int server(char *filename) {
     return errno;
   }
 
-  /* get remote address */
-  char local_ip[100];
-  char local_port[8];
-  getnameinfo(local_address->ai_addr, local_address->ai_addrlen, local_ip,
-              sizeof(local_ip), local_port, sizeof(local_port),
-              NI_NUMERICHOST | NI_NUMERICSERV);
+  /* get local address */
+  // char local_ip[100];
+  // char local_port[8];
+  // getnameinfo(local_address->ai_addr, local_address->ai_addrlen, local_ip,
+  //             sizeof(local_ip), local_port, sizeof(local_port),
+  //             NI_NUMERICHOST | NI_NUMERICSERV);
+  //
 
   /* printf("Creating socket...\n"); */
   int socket_listen;
@@ -126,7 +149,8 @@ int server(char *filename) {
     return errno;
   }
 
-  printf("Esperando conexion en: %s:%s\n", local_ip, local_port);
+  getIpAdress();
+
   struct sockaddr_storage client_address;
   socklen_t client_len = sizeof(client_address);
   int socket_client =
@@ -209,7 +233,7 @@ int client(char *hostname) {
     return errno;
   }
   freeaddrinfo(server_address);
-  printf("Conectado a %s:%s\n", address_buffer, service_buffer);
+  printf("Conectado a IP: %s puerto %s\n", address_buffer, service_buffer);
 
   /* receive file code here */
 
