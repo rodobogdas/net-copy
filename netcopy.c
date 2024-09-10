@@ -320,7 +320,7 @@ int client(char *hostname) {
 }
 
 void printhelp(char progname[]) {
-  printf("%s [-r] ip \n", progname);
-  printf("%s [-s] files=name ip\n", progname);
-  printf("%s [-p] port \n", progname);
+  printf("%s [-r] ip\n", progname);
+  printf("%s [-s] filename\n", progname);
+  printf("%s [-p] port\n", progname);
 }
