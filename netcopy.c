@@ -72,8 +72,7 @@ int get_ip() {
   FILE *f;
   char line[100], *p, *c;
 
-  f = fopen("/proc/net/route", "r");
-  if (f == NULL) {
+  if ((f = fopen("/proc/net/route", "r")) == NULL) {
     perror("Error opening /proc/net/route");
     return errno;
   }
@@ -183,7 +182,7 @@ int server(char *filename) {
   }
 
   int e;
-  if (e = get_ip())
+  if ((e = get_ip()))
     return e;
 
   struct sockaddr_storage client_address;
@@ -196,9 +195,9 @@ int server(char *filename) {
   }
 
   printf("Cliente conectado desde la IP: ");
-  char address_buffer[100];
+  char address_buffer[INET_ADDRSTRLEN];
   getnameinfo((struct sockaddr *)&client_address, client_len, address_buffer,
-              sizeof(address_buffer), 0, 0, NI_NUMERICHOST);
+              INET_ADDRSTRLEN, 0, 0, NI_NUMERICHOST);
   printf("%s\n", address_buffer);
 
   /* send filename and file data */
@@ -247,10 +246,10 @@ int client(char *hostname) {
     return errno;
   }
   /* get remote address */
-  char address_buffer[100];
-  char service_buffer[100];
+  char address_buffer[INET_ADDRSTRLEN];
+  char service_buffer[8];
   getnameinfo(server_address->ai_addr, server_address->ai_addrlen,
-              address_buffer, sizeof(address_buffer), service_buffer,
+              address_buffer, INET_ADDRSTRLEN, service_buffer,
               sizeof(service_buffer), NI_NUMERICHOST | NI_NUMERICSERV);
 
   /* printf("Creating socket...\n"); */
