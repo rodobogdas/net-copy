@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@ char *port = "8080";
 void printhelp(char progname[]);
 int server(char *file);
 int client(char *hostname);
+int get_ip();
 
 int main(int argc, char *argv[]) {
   int (*func)(char *) = NULL;
@@ -66,32 +68,71 @@ int main(int argc, char *argv[]) {
   return (func(argv[optind]));
 }
 
-void getIpAdress(void) {
+int get_ip() {
   FILE *f;
-  char line[100], *p, *c, *ip;
-  struct in_addr addr;
+  char line[100], *p, *c;
+
   f = fopen("/proc/net/route", "r");
+  if (f == NULL) {
+    perror("Error opening /proc/net/route");
+    return errno;
+  }
 
   while (fgets(line, 100, f)) {
     p = strtok(line, " \t");
     c = strtok(NULL, " \t");
-    ip = strtok(NULL, " \t");
 
-    if (p != NULL && c != NULL && ip != NULL) {
+    if (p != NULL && c != NULL) {
       if (strcmp(c, "00000000") == 0) {
         printf("Default interface is : %s \n", p);
-        addr.s_addr = (int)strtol(ip, NULL, 16);
-        char *s = inet_ntoa(addr);
-        printf("Esperando conexion en IP: %s puerto:%s\n", s, port);
         break;
       }
     }
   }
+
+  // which family do we require , AF_INET or AF_INET6
+  struct ifaddrs *ifaddr, *ifa;
+  int family, s;
+  char ipAdress[INET_ADDRSTRLEN];
+
+  if (getifaddrs(&ifaddr) == -1) {
+    perror("getifaddrs");
+    return errno;
+  }
+
+  // Walk through linked list, maintaining head pointer so we can free list
+  // later
+  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == NULL) {
+      continue;
+    }
+
+    family = ifa->ifa_addr->sa_family;
+
+    if (strcmp(ifa->ifa_name, p) == 0) {
+      if (family == AF_INET) {
+        s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), ipAdress,
+                        INET_ADDRSTRLEN, NULL, 0, NI_NUMERICHOST);
+
+        if (s != 0) {
+          printf("getnameinfo() failed: %s\n", gai_strerror(s));
+          return (errno);
+        }
+
+        printf("Esperando conexion en %s puerto %s\n", ipAdress, port);
+      }
+    }
+  }
+
+  freeifaddrs(ifaddr);
+
+  return 0;
 }
+
 int server(char *filename) {
   int fd, filesz;
   struct stat filestat;
-  char buffer[255];
+  char buffer[256];
   memset(buffer, 0, sizeof(buffer));
 
   if (stat(filename, &filestat) == -1) {
@@ -119,15 +160,7 @@ int server(char *filename) {
     return errno;
   }
 
-  /* get local address */
-  // char local_ip[100];
-  // char local_port[8];
-  // getnameinfo(local_address->ai_addr, local_address->ai_addrlen, local_ip,
-  //             sizeof(local_ip), local_port, sizeof(local_port),
-  //             NI_NUMERICHOST | NI_NUMERICSERV);
-  //
-
-  /* printf("Creating socket...\n"); */
+  /* Creating socket... */
   int socket_listen;
   socket_listen = socket(local_address->ai_family, local_address->ai_socktype,
                          local_address->ai_protocol);
@@ -135,7 +168,7 @@ int server(char *filename) {
     perror("socket() failed");
     return errno;
   }
-  /* printf("Binding socket to local address...\n"); */
+  /* Binding socket to local address... */
   if (bind(socket_listen, local_address->ai_addr, local_address->ai_addrlen)) {
     perror("bind() failed");
     return errno;
@@ -143,13 +176,15 @@ int server(char *filename) {
 
   freeaddrinfo(local_address);
 
-  /* printf("Listening...\n"); */
+  /* Listening...*/
   if (listen(socket_listen, 10) < 0) {
     perror("listen() failed");
     return errno;
   }
 
-  getIpAdress();
+  int e;
+  if (e = get_ip())
+    return e;
 
   struct sockaddr_storage client_address;
   socklen_t client_len = sizeof(client_address);
